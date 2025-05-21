@@ -2,6 +2,8 @@ name: Build & Release EXE
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*.*.*'      # v1.0.0 gibi bir tag push’ladığında tetiklesin
 
