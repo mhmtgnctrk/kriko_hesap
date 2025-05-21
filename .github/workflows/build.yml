@@ -5,43 +5,50 @@ on:
     branches:
       - main
     tags:
-      - 'v*.*.*'      # v1.0.0 gibi bir tag push’ladığında tetiklesin
+      - 'v*.*.*'   # v1.0.0 gibi tag’ler
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout kodu
-      uses: actions/checkout@v3
+      - name: Checkout kodu
+        uses: actions/checkout@v3
 
-    - name: Python’ı kur
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x'
+      - name: Python’ı kur
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
 
-    - name: Gereksinimleri yükle
-      run: |
-        python -m pip install --upgrade pip
-        pip install pyinstaller
+      - name: Gereksinimleri yükle
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
 
-    - name: EXE’yi derle
-      run: |
-        pyinstaller --onefile --windowed hesap.py
-      # Eğer farklı girdilerin (config, ikon vs.) kopyalanması gerekirse ekle:
-      #   cp assets/*.ico dist/
+      - name: EXE’yi derle
+        run: |
+          pyinstaller --onefile --windowed hesap.py
 
-    - name: Create GitHub Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ github.ref_name }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - id: create_release
+        name: Release oluştur
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Upload EXE to Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: dist/hesap.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: EXE’yi Release’e ekle
+        uses: actions/upload-release-asset@v2
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/hesap.exe
+          asset_name: hesap.exe
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
