@@ -30,7 +30,7 @@ jobs:
 
       - name: EXE’yi derle
         run: |
-          pyinstaller --onefile --windowed --collect-all numpy --collect-all pandas hesap.py
+          pyinstaller --onefile --windowed --icon=app.ico --collect-all numpy --collect-all pandas hesap.py
 
       - id: create_release
         name: Release oluştur
