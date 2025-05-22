@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import numpy as np
 import pandas as pd
-import re
+
 
 # ----------------------
 # Reset butonuyla tüm alanları temizle
