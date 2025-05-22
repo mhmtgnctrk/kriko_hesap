@@ -52,7 +52,7 @@ def copy_interpolated_to_clipboard():
 def hesapla():
     raw = txt_data.get("1.0", tk.END).strip()
     if not raw:
-        messagebox.showerror("Hata", "Height–Load verilerini gir veya yapıştır!")
+        messagebox.showerror("Hata", "Height(Yükesklik)–Load(Yük) verilerini gir veya yapıştır!")
         return
     lines = raw.splitlines()
     height_vals, load_vals = [], []
@@ -72,7 +72,7 @@ def hesapla():
         jmin = float(entry_jmin.get())
         jmax = float(entry_jmax.get())
     except:
-        messagebox.showerror("Hata", "JackMin/JackMax değerlerini kontrol et!")
+        messagebox.showerror("Hata", "Kriko Min/Kriko Max değerlerini kontrol et!")
         return
     h_min, h_max = min(height_vals), max(height_vals)
     ht_list = list(range(int(h_min), int(h_max) + 5, 5))
@@ -97,12 +97,13 @@ def hesapla():
     txt_E1.delete("1.0", tk.END)
     txt_E1.insert("1.0",
         f"{E1_TITLE}\n\n"
-        f"Nominal kapasite: {nominal:.2f} kg\n\n"
         f"Prosedür:\n"
-        f"1) Jack’ı tam strokta ({jmax:.1f} mm) konumlandırın ve nominal yük uygulayın.\n"
-        f"2) Strokun %50’sine indirin: {mid_h_jack:.1f} mm.\n\n"
+        f"1) Krikoyu tam strokta ({jmax:.1f} mm) konumlandırın ve nominal kapasiteyi yükleyin.\n"
+        f"2) Yükü değiştirmeden (ölü ağırlık) krikoyu indirin.\n"
+        f"3) Strok %50’ye ({mid_h_jack:.1f}) mm değerine geldiğinde durun.\n\n"
         f"Kabul Kriteri:\n"
-        f"• Krikonun en açık yüksekliğinin %5’i = {loss_limit_jack:.2f} mm; bu değerden fazla kalıcı indirme kaybı olmamalı."
+        f"• Kriko durduktan sonra en açık yüksekliğinin %5’inden yani,\n"
+        f"  {loss_limit_jack:.2f} mm'den fazla kalıcı yükseklik kaybı olmamalı."
     )
     txt_E1.config(state='disabled')
 
@@ -112,12 +113,12 @@ def hesapla():
     txt_E2.delete("1.0", tk.END)
     txt_E2.insert("1.0",
         f"{E2_TITLE}\n\n"
-        f"Nominal kapasite: {nominal:.2f} kg\n\n"
         f"Prosedür:\n"
-        f"1) Yük eğrisi min/max aralığında %66 noktasına ({h66_curve:.1f} mm) kadar kaldırın; yük = nominal kapasite ({nominal:.2f} kg).\n"
-        f"2) 30 dakika bekletin ve yükseklik kaybını ölçün.\n\n"
+        f"1) Krikoyu, yük eğrisinin min/max aralığında %66 noktasına ({h66_curve:.1f} mm) kadar kaldırın;\n"
+        f"2) Nominal kapasite ({nominal:.2f} kg) yükünü uygulayın.\n"
+        f"3) 30 dakika bekletin ve yükseklik kaybını ölçün.\n\n"
         f"Kabul Kriteri:\n"
-        f"• 30 dakikada yükseklik kaybı ≤ 5 mm olmalı."
+        f"• 30 dakikasonunda yükseklik kaybı ≤ 5 mm olmalı."
     )
     txt_E2.config(state='disabled')
 
@@ -127,10 +128,10 @@ def hesapla():
     txt_E3.insert("1.0",
         f"{E3_TITLE}\n\n"
         f"Prosedür:\n"
-        f"1) Jack’ı tam strokta ({jmax:.1f} mm) konumlandırın.\n"
-        f"2) Yük eğrisindeki max yükü ({nominal:.2f} kg) uygulayın.\n\n"
+        f"1) Krikoyu tam strokta ({jmax:.1f} mm) konumlandırın.\n"
+        f"2) Yük eğrisindeki max yükü ({nominal:.2f} kg) eksantrik bir şekide uygulayın.\n\n"
         f"Kabul Kriteri:\n"
-        f"• Jack normal fonksiyonunu korumalı; kayıp/çökme olmamalı."
+        f"• Kriko normal fonksiyonunu korumalı, deformasyon ya da fonksyion kaybı olmamalı."
     )
     txt_E3.config(state='disabled')
 
@@ -145,12 +146,16 @@ def hesapla():
     txt_C1.delete("1.0", tk.END)
     txt_C1.insert("1.0",
         f"{C1_TITLE}\n\n"
-        f"Nominal kapasite: {nominal:.2f} kg\n"
-        f"Proof Load (33%): {w33:.2f} kg at {h33:.1f} mm\n"
-        f"Proof Load (66%): {w66:.2f} kg at {h66:.1f} mm\n"
-        f"Proof Load (99%): {w99:.2f} kg at {h99:.1f} mm\n\n"
+        f"Prosedür:\n"
+        f"Krikoya aşağıdaki her aşamadan önce 1000N yük uygulayıp yükseklik ölçülür.\n"
+        f"Daha sonra yük verilip 5 dakika bekletilir.\n"
+        f"5 dakika sonunda yük tekrar 1000N'a çekilir ve yükseklik tekrar ölçülür.\n"
+        f"İlk ölçümle, ikinci ölçüm arasındaki fark kabul kriterine göre değerlendirilir.\n\n"
+        f"1) Proof Load (99%): Krikoyu {h99:.1f} mm yüksekliğe getirin ve {w99:.1f} kg yükü 5 dakika uygulayın.\n"
+        f"2) Proof Load (66%): Krikoyu {h66:.1f} mm yüksekliğe getirin ve {w66:.1f} kg yükü 5 dakika uygulayın.\n"
+        f"3) Proof Load (33%): Krikoyu {h33:.1f} mm yüksekliğe getirin ve {w33:.1f} kg yükü 5 dakika uygulayın.\n\n"
         f"Kabul Kriteri:\n"
-        f"- Kalıcı defleksiyon ≤ 6,0 mm."
+        f"- Kalıcı yükseklik kaybı ≤ 6,0 mm."
     )
     txt_C1.config(state='disabled')
 
@@ -161,10 +166,12 @@ def hesapla():
     txt_C2.delete("1.0", tk.END)
     txt_C2.insert("1.0",
         f"{C2_TITLE}\n\n"
-        f"Nominal kapasite: {nominal:.2f} kg\n"
-        f"Overload (%200): {overload:.2f} kg at {h66_curve:.1f} mm\n\n"
+        f"Prosedür: Krikoya aşağıdaki yük 1 dakika uygulanıp kaldırıldıktan sonra yüksekliği ölçülür.\n"
+        f"Test yüksekliği ile yük kalktıktan sonra ölçülen yükseklik arasındaki fark kabul kriterine göre değerlendirilir.\n\n"
+        f"1) Krikoya, {overload:.2f} kg yükü {h66_curve:.1f} mm yükseklikte uygulayın.\n"
+        f"2) 1 dakika sonra yükü kaldırıp yüksekliği ölçün ve test yüksekliği ile farkına bakın.\n\n"
         f"Kabul Kriteri:\n"
-        f"• Test yüksekliğinin %5’i = {height_loss_limit:.2f} mm; bu değerden fazla yükseklik kaybı olmamalı."
+        f"• Yükseklik kaybı test yüksekliğinin %5’inden ({height_loss_limit:.2f} mm) fazla olmamalı."
     )
     txt_C2.config(state='disabled')
 
@@ -172,19 +179,19 @@ def hesapla():
 # GUI bileşenlerini oluştur
 # ----------------------
 root = tk.Tk()
-root.title("Jack–Load Test Prosedürleri")
+root.title("Ford Kriko DV Testleri Yük-Yükseklik Hesaplama Aracı")
 
 frame_top = tk.Frame(root)
 frame_top.pack(fill='x', padx=10, pady=5)
-tk.Label(frame_top, text="Height    Load (kopyala-yapıştır)").pack(anchor='w')
+tk.Label(frame_top, text="Height(Yükseklik)    Load(Yük) (kopyala-yapıştır, yada boşluk bırakark değer gir.)").pack(anchor='w')
 txt_data = scrolledtext.ScrolledText(frame_top, width=40, height=6)
 txt_data.pack(fill='x')
 
 frame_params = tk.Frame(root)
 frame_params.pack(fill='x', padx=10)
-tk.Label(frame_params, text="JackMin (mm):").grid(row=0, column=0)
+tk.Label(frame_params, text="Kriko Min (mm):").grid(row=0, column=0)
 entry_jmin = tk.Entry(frame_params, width=8); entry_jmin.grid(row=0, column=1)
-tk.Label(frame_params, text="JackMax (mm):").grid(row=0, column=2)
+tk.Label(frame_params, text="Kriko Max (mm):").grid(row=0, column=2)
 entry_jmax = tk.Entry(frame_params, width=8); entry_jmax.grid(row=0, column=3)
 
 tool_frame = tk.Frame(root)
@@ -204,19 +211,19 @@ C1_TITLE = "C.1 Proof Load Test"
 C2_TITLE = "C.2 Overload Test"
 
 E1_TEMPLATE = (
-    f"{E1_TITLE}\n\nProsedür ve kabul kriterleri buraya..."
+    f"{E1_TITLE}\n\nHesaplamalar için yük-yükseklik eğrisi, kriko min ve kriko max bilgileri bekleniyor..."
 )
 E2_TEMPLATE = (
-    f"{E2_TITLE}\n\nProsedür ve kabul kriterleri buraya..."
+    f"{E2_TITLE}\n\nHesaplamalar için yük-yükseklik eğrisi, kriko min ve kriko max bilgileri bekleniyor..."
 )
 E3_TEMPLATE = (
-    f"{E3_TITLE}\n\nProsedür ve kabul kriterleri buraya..."
+    f"{E3_TITLE}\n\nHesaplamalar için yük-yükseklik eğrisi, kriko min ve kriko max bilgileri bekleniyor..."
 )
 C1_TEMPLATE = (
-    f"{C1_TITLE}\n\nProof load hesaplamaları sonrası buraya eklenecek"
+    f"{C1_TITLE}\n\nHesaplamalar için yük-yükseklik eğrisi, kriko min ve kriko max bilgileri bekleniyor..."
 )
 C2_TEMPLATE = (
-    f"{C2_TITLE}\n\nOverload hesaplamaları sonrası buraya eklenecek"
+    f"{C2_TITLE}\n\nHesaplamalar için yük-yükseklik eğrisi, kriko min ve kriko max bilgileri bekleniyor..."
 )
 
 # Create tabs
@@ -242,7 +249,7 @@ tree.pack(side='left', expand=True, fill='both')
 y_scroll = ttk.Scrollbar(data_tab, orient='vertical', command=tree.yview)
 tree.configure(yscrollcommand=y_scroll.set)
 y_scroll.pack(side='right', fill='y')
-results_notebook.add(data_tab, text="Interpolated Data")
+results_notebook.add(data_tab, text="İnterpole Edilmiş Yük Eğrisi (5mm)")
 
 # Global DataFrame
 df_global = pd.DataFrame()
