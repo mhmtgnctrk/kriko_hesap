@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import numpy as np
 import pandas as pd
-
+import re
 
 # ----------------------
 # Reset butonuyla tüm alanları temizle
@@ -29,14 +29,31 @@ def reset_all():
     df_global = pd.DataFrame()
 
 # ----------------------
+# Tabloyu panoya kopyala (Excel uyumlu)
+# ----------------------
+def copy_interpolated_to_clipboard():
+    if df_global.empty:
+        messagebox.showerror("Hata", "Önce veri oluşturmak için Hesapla'ya basın!")
+        return
+    header = f"{df_global.columns[0]}\t{df_global.columns[1]}"
+    lines = [header]
+    for _, row in df_global.iterrows():
+        h = int(row['Height']) if row['Height'].is_integer() else row['Height']
+        load_str = f"{row['Load']:.3f}".replace('.', ',')
+        lines.append(f"{h}\t{load_str}")
+    clip_text = "\n".join(lines)
+    root.clipboard_clear()
+    root.clipboard_append(clip_text)
+    messagebox.showinfo("Kopyalandı", "Tablo panoya kopyalandı. Excel'e yapıştırabilirsiniz.")
+
+# ----------------------
 # Hesaplama işlevi
 # ----------------------
 def hesapla():
     raw = txt_data.get("1.0", tk.END).strip()
     if not raw:
-        messagebox.showerror("Hata", "Height(Yükesklik)–Load(Yük) verilerini gir veya yapıştır!")
+        messagebox.showerror("Hata", "Height–Load verilerini gir veya yapıştır!")
         return
-    # parse input table
     lines = raw.splitlines()
     height_vals, load_vals = [], []
     for idx, line in enumerate(lines, 1):
@@ -51,50 +68,45 @@ def hesapla():
             return
         height_vals.append(h)
         load_vals.append(l)
-
     try:
         jmin = float(entry_jmin.get())
         jmax = float(entry_jmax.get())
     except:
-        messagebox.showerror("Hata", "Kriko Min/Kriko Max değerlerini kontrol et!")
+        messagebox.showerror("Hata", "JackMin/JackMax değerlerini kontrol et!")
         return
-
-    # interpolation table (5 mm steps)
     h_min, h_max = min(height_vals), max(height_vals)
     ht_list = list(range(int(h_min), int(h_max) + 5, 5))
     ld_list = np.interp(ht_list, height_vals, load_vals)
     df = pd.DataFrame({'Height': ht_list, 'Load': [round(v,3) for v in ld_list]})
-    for item in tree.get_children(): tree.delete(item)
+    for item in tree.get_children():
+        tree.delete(item)
     tree['columns'] = df.columns.tolist()
     for c in df.columns:
         tree.heading(c, text=c)
         tree.column(c, anchor='center', width=80)
     for row in df.values.tolist():
         tree.insert('', 'end', values=row)
-    global df_global; df_global = df
-
-    # nominal capacity
+    global df_global
+    df_global = df
     nominal = max(load_vals)
-
-    # E1: Lowering at 50% stroke (jack travel)
-    mid_h_jack = (jmax - jmin) * 0.5 + jmin
     loss_limit_jack = jmax * 0.05
+    mid_h_jack = (jmax - jmin) * 0.5 + jmin
+
+    # E1: Lowering of Jack
     txt_E1.config(state='normal')
     txt_E1.delete("1.0", tk.END)
     txt_E1.insert("1.0",
         f"{E1_TITLE}\n\n"
         f"Nominal kapasite: {nominal:.2f} kg\n\n"
         f"Prosedür:\n"
-        f"1) Krikoyu tam strokta ({jmax:.1f} mm) konumlandırın ve nominal kapasiteyi yükleyin.\n"
-        f"2) Yükü değiştirmeden (ölü ağırlık) krikoyu indirin.\n"
-        f"3) Strok %50’ye yani {mid_h_jack:.1f} mm değerine geldiğinde durun.\n\n"
+        f"1) Jack’ı tam strokta ({jmax:.1f} mm) konumlandırın ve nominal yük uygulayın.\n"
+        f"2) Strokun %50’sine indirin: {mid_h_jack:.1f} mm.\n\n"
         f"Kabul Kriteri:\n"
-        f"• Kriko durduktan sonra en açık yüksekliğinin %5’inden yani,\n"
-        f"  {loss_limit_jack:.2f} mm'den fazla kalıcı yükseklik kaybı olmamalı."
+        f"• Krikonun en açık yüksekliğinin %5’i = {loss_limit_jack:.2f} mm; bu değerden fazla kalıcı indirme kaybı olmamalı."
     )
     txt_E1.config(state='disabled')
 
-    # E2: Loss of Height with Time at 66% of input curve bounds
+    # E2: Loss of Height with Time
     h66_curve = (h_max - h_min) * 0.66 + h_min
     txt_E2.config(state='normal')
     txt_E2.delete("1.0", tk.END)
@@ -102,30 +114,29 @@ def hesapla():
         f"{E2_TITLE}\n\n"
         f"Nominal kapasite: {nominal:.2f} kg\n\n"
         f"Prosedür:\n"
-        f"1) Krikoyu, yük eğrisinin min/max aralığında %66 noktasına ({h66_curve:.1f} mm) kadar kaldırın;\n"
-        f"   Nominal kapasite ({nominal:.2f} kg) yükü uygulayın.\n"
+        f"1) Yük eğrisi min/max aralığında %66 noktasına ({h66_curve:.1f} mm) kadar kaldırın; yük = nominal kapasite ({nominal:.2f} kg).\n"
         f"2) 30 dakika bekletin ve yükseklik kaybını ölçün.\n\n"
         f"Kabul Kriteri:\n"
-        f"• 30 dakikasonunda yükseklik kaybı ≤ 5 mm olmalı."
+        f"• 30 dakikada yükseklik kaybı ≤ 5 mm olmalı."
     )
     txt_E2.config(state='disabled')
 
-    # E3: Offset Loading at full stroke with max load
+    # E3: Jack Offset Loading
     txt_E3.config(state='normal')
     txt_E3.delete("1.0", tk.END)
     txt_E3.insert("1.0",
         f"{E3_TITLE}\n\n"
         f"Prosedür:\n"
-        f"1) Krikoyu tam strokta ({jmax:.1f} mm) konumlandırın.\n"
-        f"2) Yük eğrisindeki max yükü ({nominal:.2f} kg) eksantrik bir şekide uygulayın.\n\n"
+        f"1) Jack’ı tam strokta ({jmax:.1f} mm) konumlandırın.\n"
+        f"2) Yük eğrisindeki max yükü ({nominal:.2f} kg) uygulayın.\n\n"
         f"Kabul Kriteri:\n"
-        f"• Kriko normal fonksiyonunu korumalı, deformasyon ya da fonksyion kaybı olmamalı."
+        f"• Jack normal fonksiyonunu korumalı; kayıp/çökme olmamalı."
     )
     txt_E3.config(state='disabled')
 
     # C1: Proof Load Test
-    h33 = (h_max - h_min) * (1/3) + h_min
-    h66 = (h_max - h_min) * (2/3) + h_min
+    h33 = (h_max - h_min)/3 + h_min
+    h66 = 2*(h_max - h_min)/3 + h_min
     h99 = h_max
     w33 = np.interp(h33, height_vals, load_vals) * 2
     w66 = np.interp(h66, height_vals, load_vals) * 2
@@ -134,17 +145,12 @@ def hesapla():
     txt_C1.delete("1.0", tk.END)
     txt_C1.insert("1.0",
         f"{C1_TITLE}\n\n"
-        f"Nominal kapasite: {nominal:.2f} kg\n\n"
-        f"Prosedür:\n"
-        f"Krikoya aşağıdaki her aşamadan önce 1000N yük uygulayıp yükseklik ölçülür.\n"
-        f"Daha sonra yük verilip 5 dakika bekletilir.\n"
-        f"5 dakika sonunda yük tekrar 1000N'a çekilir ve yükseklik tekrar ölçülür.\n"
-        f"İlk ölçümle, ikinci ölçüm arasındaki fark kabul kriterine göre değerlendirilir.\n"
-        f"Proof Load (99%): Krikoyu {h99:.1f} mm yüksekliğe getir.\n"
-        f"Proof Load (66%): Krikoyu {h66:.1f} mm yüksekliğe getir.\n"
-        f"Proof Load (33%): {w33:.2f} kg at {h33:.1f} mm\n\n"
+        f"Nominal kapasite: {nominal:.2f} kg\n"
+        f"Proof Load (33%): {w33:.2f} kg at {h33:.1f} mm\n"
+        f"Proof Load (66%): {w66:.2f} kg at {h66:.1f} mm\n"
+        f"Proof Load (99%): {w99:.2f} kg at {h99:.1f} mm\n\n"
         f"Kabul Kriteri:\n"
-        f"- Kalıcı yükseklik kaybı ≤ 6,0 mm."
+        f"- Kalıcı defleksiyon ≤ 6,0 mm."
     )
     txt_C1.config(state='disabled')
 
@@ -155,13 +161,10 @@ def hesapla():
     txt_C2.delete("1.0", tk.END)
     txt_C2.insert("1.0",
         f"{C2_TITLE}\n\n"
-        f"Nominal kapasite: {nominal:.2f} kg\n\n"
-        f"Prosedür: Krikoya aşağıdaki yük 1 dakika uygulanıp kaldırıldıktan sonra yüksekliği ölçülür.\n"
-        f"Test yüksekliği ile yük kalktıktan sonra ölçülen yükseklik arasındaki fark kabul kriterine göre değerlendirilir.\n"
-        f"Krikoya, {overload:.2f} kg yükü {h66_curve:.1f} mm yükseklikte uygula\n\n"
+        f"Nominal kapasite: {nominal:.2f} kg\n"
+        f"Overload (%200): {overload:.2f} kg at {h66_curve:.1f} mm\n\n"
         f"Kabul Kriteri:\n"
-        f"• Test yüksekliğinin %5’i = {height_loss_limit:.2f} mm; yükseklik kaybı\n"
-        f"  bu değerden fazla olmamalı."
+        f"• Test yüksekliğinin %5’i = {height_loss_limit:.2f} mm; bu değerden fazla yükseklik kaybı olmamalı."
     )
     txt_C2.config(state='disabled')
 
@@ -169,25 +172,26 @@ def hesapla():
 # GUI bileşenlerini oluştur
 # ----------------------
 root = tk.Tk()
-root.title("Ford Kriko DV Testleri Yük-Yükseklik Hesaplama Aracı")
+root.title("Jack–Load Test Prosedürleri")
 
 frame_top = tk.Frame(root)
 frame_top.pack(fill='x', padx=10, pady=5)
-tk.Label(frame_top, text="Height(Yükseklik)    Load(Yük) (kopyala-yapıştır, yada boşluk bırakark değer gir.)").pack(anchor='w')
+tk.Label(frame_top, text="Height    Load (kopyala-yapıştır)").pack(anchor='w')
 txt_data = scrolledtext.ScrolledText(frame_top, width=40, height=6)
 txt_data.pack(fill='x')
 
 frame_params = tk.Frame(root)
 frame_params.pack(fill='x', padx=10)
-tk.Label(frame_params, text="Kriko Min (mm):").grid(row=0, column=0)
+tk.Label(frame_params, text="JackMin (mm):").grid(row=0, column=0)
 entry_jmin = tk.Entry(frame_params, width=8); entry_jmin.grid(row=0, column=1)
-tk.Label(frame_params, text="Kriko Max (mm):").grid(row=0, column=2)
+tk.Label(frame_params, text="JackMax (mm):").grid(row=0, column=2)
 entry_jmax = tk.Entry(frame_params, width=8); entry_jmax.grid(row=0, column=3)
 
 tool_frame = tk.Frame(root)
 tool_frame.pack(pady=5)
 tk.Button(tool_frame, text="Hesapla", command=hesapla).pack(side='left', padx=5)
 tk.Button(tool_frame, text="Temizle", command=reset_all).pack(side='left', padx=5)
+tk.Button(tool_frame, text="Excel'e Kopyala", command=copy_interpolated_to_clipboard).pack(side='left', padx=5)
 
 results_notebook = ttk.Notebook(root)
 results_notebook.pack(fill='both', expand=True, padx=10, pady=5)
@@ -200,27 +204,32 @@ C1_TITLE = "C.1 Proof Load Test"
 C2_TITLE = "C.2 Overload Test"
 
 E1_TEMPLATE = (
-    f"{E1_TITLE}\n\nHesaplamalar için yük-yükseklik eğrisi, kriko min ve kriko max bilgileri bekleniyor..."
+    f"{E1_TITLE}\n\nProsedür ve kabul kriterleri buraya..."
 )
 E2_TEMPLATE = (
-    f"{E2_TITLE}\n\nHesaplamalar için yük-yükseklik eğrisi, kriko min ve kriko max bilgileri bekleniyor..."
+    f"{E2_TITLE}\n\nProsedür ve kabul kriterleri buraya..."
 )
 E3_TEMPLATE = (
-    f"{E3_TITLE}\n\nHesaplamalar için yük-yükseklik eğrisi, kriko min ve kriko max bilgileri bekleniyor..."
+    f"{E3_TITLE}\n\nProsedür ve kabul kriterleri buraya..."
 )
 C1_TEMPLATE = (
-    f"{C1_TITLE}\n\nHesaplamalar için yük-yükseklik eğrisi, kriko min ve kriko max bilgileri bekleniyor..."
+    f"{C1_TITLE}\n\nProof load hesaplamaları sonrası buraya eklenecek"
 )
 C2_TEMPLATE = (
-    f"{C2_TITLE}\n\nHesaplamalar için yük-yükseklik eğrisi, kriko min ve kriko max bilgileri bekleniyor..."
+    f"{C2_TITLE}\n\nOverload hesaplamaları sonrası buraya eklenecek"
 )
 
 # Create tabs
-for title, txt_var in [(E1_TITLE, 'txt_E1'), (E2_TITLE, 'txt_E2'),
-                       (E3_TITLE, 'txt_E3'), (C1_TITLE, 'txt_C1'), (C2_TITLE, 'txt_C2')]:
+for title, txt_var, template in [
+    (E1_TITLE, 'txt_E1', E1_TEMPLATE),
+    (E2_TITLE, 'txt_E2', E2_TEMPLATE),
+    (E3_TITLE, 'txt_E3', E3_TEMPLATE),
+    (C1_TITLE, 'txt_C1', C1_TEMPLATE),
+    (C2_TITLE, 'txt_C2', C2_TEMPLATE),
+]:
     tab = tk.Frame(results_notebook)
     widget = globals()[txt_var] = tk.Text(tab, wrap='word', height=12)
-    widget.insert('1.0', globals()[txt_var.replace('txt_', '').upper() + '_TEMPLATE'])
+    widget.insert('1.0', template)
     widget.config(state='disabled')
     widget.pack(fill='both', expand=True)
     results_notebook.add(tab, text=title)
@@ -233,10 +242,9 @@ tree.pack(side='left', expand=True, fill='both')
 y_scroll = ttk.Scrollbar(data_tab, orient='vertical', command=tree.yview)
 tree.configure(yscrollcommand=y_scroll.set)
 y_scroll.pack(side='right', fill='y')
-results_notebook.add(data_tab, text="Interpole Edilmiş Yük Eğrisi")
+results_notebook.add(data_tab, text="Interpolated Data")
 
 # Global DataFrame
-_df = pd.DataFrame()
-df_global = _df
+df_global = pd.DataFrame()
 
 root.mainloop()
