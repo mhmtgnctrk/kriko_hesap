@@ -1,3 +1,17 @@
+### Ford Kriko DV Testleri Yük-Yükseklik Hesaplama Aracı
+# Bu program, Ford Kriko DV testleri için yükseklik ve yük hesaplamalarını yapar.
+# Kullanıcıdan yükseklik ve yük verilerini alır, interpolasyon yapar ve sonuçları gösterir.
+### Kullanıcı arayüzü Tkinter ile oluşturulmuştur.
+### Kullanım:
+# 1. Yükseklik ve yük verilerini girin veya yapıştırın.
+# 2. Kriko Min ve Kriko Max değerlerini girin.
+# 3. "Hesapla" butonuna basın.
+# 4. Sonuçları inceleyin ve "Excel'e Kopyala" butonuyla kopyalayın.
+### version v0.1.0
+# ----------------------
+### yazar: mehmet gençtürk
+# tarih: 2025-05-22
+
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import numpy as np
@@ -98,7 +112,7 @@ def hesapla():
     txt_E1.insert("1.0",
         f"{E1_TITLE}\n\n"
         f"Prosedür:\n"
-        f"1) Krikoyu tam strokta ({jmax:.1f} mm) konumlandırın ve nominal kapasiteyi yükleyin.\n"
+        f"1) Krikoyu tam strokta ({jmax:.1f} mm) konumlandırın ve nominal kapasite ({nominal:.2f} kg) yükünü uygulayın.\n"
         f"2) Yükü değiştirmeden (ölü ağırlık) krikoyu indirin.\n"
         f"3) Strok %50’ye ({mid_h_jack:.1f}) mm değerine geldiğinde durun.\n\n"
         f"Kabul Kriteri:\n"
@@ -151,9 +165,9 @@ def hesapla():
         f"Daha sonra yük verilip 5 dakika bekletilir.\n"
         f"5 dakika sonunda yük tekrar 1000N'a çekilir ve yükseklik tekrar ölçülür.\n"
         f"İlk ölçümle, ikinci ölçüm arasındaki fark kabul kriterine göre değerlendirilir.\n\n"
-        f"1) Proof Load (99%): Krikoyu {h99:.1f} mm yüksekliğe getirin ve {w99:.1f} kg yükü 5 dakika uygulayın.\n"
-        f"2) Proof Load (66%): Krikoyu {h66:.1f} mm yüksekliğe getirin ve {w66:.1f} kg yükü 5 dakika uygulayın.\n"
-        f"3) Proof Load (33%): Krikoyu {h33:.1f} mm yüksekliğe getirin ve {w33:.1f} kg yükü 5 dakika uygulayın.\n\n"
+        f"1) Proof Load (%100): Krikoyu {h_max:.1f} mm yüksekliğe getirin ve {w99:.1f} kg yükü 5 dakika uygulayın.\n"
+        f"2) Proof Load (%66): Krikoyu {h66:.1f} mm yüksekliğe getirin ve {w66:.1f} kg yükü 5 dakika uygulayın.\n"
+        f"3) Proof Load (%33): Krikoyu {h33:.1f} mm yüksekliğe getirin ve {w33:.1f} kg yükü 5 dakika uygulayın.\n\n"
         f"Kabul Kriteri:\n"
         f"- Kalıcı yükseklik kaybı ≤ 6,0 mm."
     )
@@ -161,14 +175,15 @@ def hesapla():
 
     # C2: Overload Test
     overload = nominal * 2
-    height_loss_limit = h66_curve * 0.05
+    overload_h66 = 2* (jmax - jmin) / 3 + jmin
+    height_loss_limit = overload_h66 * 0.05
     txt_C2.config(state='normal')
     txt_C2.delete("1.0", tk.END)
     txt_C2.insert("1.0",
         f"{C2_TITLE}\n\n"
         f"Prosedür: Krikoya aşağıdaki yük 1 dakika uygulanıp kaldırıldıktan sonra yüksekliği ölçülür.\n"
         f"Test yüksekliği ile yük kalktıktan sonra ölçülen yükseklik arasındaki fark kabul kriterine göre değerlendirilir.\n\n"
-        f"1) Krikoya, {overload:.2f} kg yükü {h66_curve:.1f} mm yükseklikte uygulayın.\n"
+        f"1) Krikoya, {overload:.2f} kg yükü {overload_h66:.1f} mm yükseklikte uygulayın.\n"
         f"2) 1 dakika sonra yükü kaldırıp yüksekliği ölçün ve test yüksekliği ile farkına bakın.\n\n"
         f"Kabul Kriteri:\n"
         f"• Yükseklik kaybı test yüksekliğinin %5’inden ({height_loss_limit:.2f} mm) fazla olmamalı."
