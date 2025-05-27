@@ -1,9 +1,9 @@
 name: Build & Release EXE
 
 on:
+  workflow_dispatch: {}
   push:
-    tags:
-      - 'v*.*.*'   # v1.0.0 gibi tag’ler
+    tags: [ 'v*.*.*' ]
 
 permissions:
   contents: write
