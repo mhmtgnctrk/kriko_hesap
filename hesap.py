@@ -14,9 +14,16 @@
 
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext, filedialog
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import io
+import win32clipboard
+from PIL import Image
 import numpy as np
 import pandas as pd
 import re
+
+fig = None     # matplotlib Figure nesnesini tutacak
 
 # ----------------------
 # Reset butonuyla tüm alanları temizle
@@ -52,8 +59,8 @@ def copy_interpolated_to_clipboard():
     header = f"{df_global.columns[0]}\t{df_global.columns[1]}"
     lines = [header]
     for _, row in df_global.iterrows():
-        h = int(row['Height']) if row['Height'].is_integer() else row['Height']
-        load_str = f"{row['Load']:.3f}".replace('.', ',')
+        h = int(row['Height (mm)']) if row['Height (mm)'].is_integer() else row['Height (mm)']
+        load_str = f"{row['Load (kg)']:.3f}".replace('.', ',')
         lines.append(f"{h}\t{load_str}")
     clip_text = "\n".join(lines)
     root.clipboard_clear()
@@ -77,36 +84,60 @@ def export_to_excel():
     if not path:
         return
 
-    try:
-        with pd.ExcelWriter(path, engine='xlsxwriter') as writer:
-            # Metin sekmeleri
-            for title, widget in [
-                (E1_TITLE, txt_E1),
-                (E2_TITLE, txt_E2),
-                (E3_TITLE, txt_E3),
-                (C1_TITLE, txt_C1),
-                (C2_TITLE, txt_C2),
-            ]:
-                lines = widget.get("1.0", tk.END).strip().splitlines()
-                pd.DataFrame({title: lines}) \
-                  .to_excel(writer, sheet_name=title[:31], index=False, header=False)
+    # ExcelWriter'ı xlsxwriter ile başlat
+    with pd.ExcelWriter(path, engine='xlsxwriter') as writer:
+        # Metin sekmeleri
+        for title, widget in [
+            (E1_TITLE, txt_E1),
+            (E2_TITLE, txt_E2),
+            (E3_TITLE, txt_E3),
+            (C1_TITLE, txt_C1),
+            (C2_TITLE, txt_C2),
+        ]:
+            lines = widget.get("1.0", tk.END).strip().splitlines()
+            pd.DataFrame({title: lines}) \
+              .to_excel(writer, sheet_name=title[:31], index=False, header=False)
 
-            # İnterpolated Data
-            df_global.to_excel(writer,
-                sheet_name=f"Interpole Edilmiş Data ({step:g} mm)", index=False
-            )
+        # İnterpole edilmiş veriler
+        df_global.to_excel(writer,
+            sheet_name="Interpolated Data", index=False
+        )
 
-        messagebox.showinfo("Kaydedildi", f"Excel dosyası oluşturuldu:\n{path}")
-    except Exception as e:
-        messagebox.showerror("Hata", f"Excel kaydedilemedi:\n{e}")
+        # Chart ekleme
+        workbook  = writer.book
+        worksheet = writer.sheets["Interpolated Data"]
+
+        # Yeni bir line chart oluştur
+        chart = workbook.add_chart({'type': 'line'})
+
+        # Veri aralığı
+        n = len(df_global)
+        # categories: ilk sütun (Height), values: ikinci sütun (Load)
+        chart.add_series({
+            'name':       'Load vs Height',
+            'categories': ['Interpolated Data', 1, 0, n, 0],
+            'values':     ['Interpolated Data', 1, 1, n, 1],
+            'line':       {'width': 2},
+        })
+
+        # Chart başlıkları
+        chart.set_x_axis({'name': 'Height (mm)'})
+        chart.set_y_axis({'name': 'Load (kg)'})
+        chart.set_title({'name': 'Interpolated Load–Height Curve'})
+
+        # C2 hücresine chart'ı yerleştir
+        worksheet.insert_chart('C2', chart, {'x_scale': 1.5, 'y_scale': 1.5})
+
+    messagebox.showinfo("Kaydedildi", f"Excel dosyası oluşturuldu:\n{path}")
 
 # ----------------------
 # Hesaplama işlevi
 # ----------------------
 def hesapla():
+    global fig, canvas
     raw = txt_data.get("1.0", tk.END).strip()
     if not raw:
-        messagebox.showerror("Hata", "Height(Yükesklik)–Load(Yük) verilerini gir veya yapıştır!")
+        messagebox.showerror("Hata", "Height(Yükesklik - mm) – Load(Yük - kg) verilerini gir veya yapıştır!")
         return
     lines = raw.splitlines()
     height_vals, load_vals = [], []
@@ -138,7 +169,7 @@ def hesapla():
     h_min, h_max = min(height_vals), max(height_vals)
     ht_list = np.arange(h_min, h_max + step/2, step).tolist()
     ld_list = np.interp(ht_list, height_vals, load_vals)
-    df = pd.DataFrame({'Height': ht_list, 'Load': [round(v,3) for v in ld_list]})
+    df = pd.DataFrame({'Height (mm)': ht_list, 'Load (kg)': [round(v,3) for v in ld_list]})
     for item in tree.get_children():
         tree.delete(item)
     tree['columns'] = df.columns.tolist()
@@ -238,6 +269,58 @@ def hesapla():
     )
     txt_C2.config(state='disabled')
     
+    # --- Grafik çizimi başlıyor ---
+    try:
+        canvas.get_tk_widget().destroy()
+    except NameError:
+        pass
+
+    fig = Figure(figsize=(4,3), dpi=100)
+    ax  = fig.add_subplot(111)
+    ax.plot(height_vals, load_vals, marker='o', linestyle='-')
+    ax.set_xlabel("Height (mm)")
+    ax.set_ylabel("Load (kg)")
+    ax.grid(True)
+
+    # burayı ekle:
+    fig.tight_layout()
+
+    canvas = FigureCanvasTkAgg(fig, master=graph_frame)
+    canvas.draw()
+    canvas.get_tk_widget().pack(fill='both', expand=True)
+    # --- Grafik çizimi bitti ---
+
+# ----------------------
+# Clipboard'a grafik kopyalama işlevi
+# Bu işlev, matplotlib Figure nesnesini BMP formatında panoya kopyalar.
+# Windows clipboard'ı kullanır.
+# Not: win32clipboard modülü Windows'a özgüdür.
+# ----------------------
+def copy_graph_to_clipboard():
+    if fig is None:
+        messagebox.showerror("Hata", "Önce Hesapla butonuna basın!")
+        return
+
+    # Figürü önce PNG olarak bellekten üret
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+
+    # PIL ile PNG’yi açıp BMP’ye çevir
+    img = Image.open(buf).convert('RGB')
+    bmp_buf = io.BytesIO()
+    img.save(bmp_buf, format='BMP')
+    bmp_data = bmp_buf.getvalue()[14:]   # BITMAPFILEHEADER’ı at, geriye DIB kalsın
+    buf.close()
+    bmp_buf.close()
+
+    # Windows panosuna DIB formatında koy (bu en çok kabul gören format)
+    win32clipboard.OpenClipboard()
+    win32clipboard.EmptyClipboard()
+    win32clipboard.SetClipboardData(win32clipboard.CF_DIB, bmp_data)
+    win32clipboard.CloseClipboard()
+
+    messagebox.showinfo("Kopyalandı", "Grafik panoya kopyalandı!")
 
 # ----------------------
 # GUI bileşenlerini oluştur
@@ -247,9 +330,17 @@ root.title("Ford Kriko DV Testleri Yük-Yükseklik Hesaplama Aracı")
 
 frame_top = tk.Frame(root)
 frame_top.pack(fill='x', padx=10, pady=5)
-tk.Label(frame_top, text="Height(Yükseklik)    Load(Yük) (kopyala-yapıştır, yada boşluk bırakark değer gir.)").pack(anchor='w')
+tk.Label(frame_top, text="Height(Yükseklik-mm)    Load(Yük-kg) (kopyala-yapıştır, yada boşluk bırakark değer gir.)").pack(anchor='w')
 txt_data = scrolledtext.ScrolledText(frame_top, width=40, height=6)
 txt_data.pack(fill='x')
+
+# Tablo ve kaydırıcılar için çerçeve
+table_frame = tk.Frame(root)
+table_frame.pack(padx=10, pady=5, expand=True, fill='both')
+
+# Şimdi sağa, grafiği koyacağımız frame:
+graph_frame = tk.Frame(table_frame)
+graph_frame.pack(side='right', fill='both', expand=True)
 
 frame_params = tk.Frame(root)
 frame_params.pack(fill='x', padx=10)
@@ -268,6 +359,7 @@ tk.Button(tool_frame, text="Hesapla", command=hesapla).pack(side='left', padx=5)
 tk.Button(tool_frame, text="Temizle", command=reset_all).pack(side='left', padx=5)
 tk.Button(tool_frame, text="Excel'e Kopyala", command=copy_interpolated_to_clipboard).pack(side='left', padx=5)
 tk.Button(tool_frame, text="Excel’e Çıktı Al", command=export_to_excel).pack(side='left', padx=5)
+tk.Button(tool_frame, text="Grafiği Kopyala",  command=copy_graph_to_clipboard).pack(side='left', padx=5)
 
 results_notebook = ttk.Notebook(root)
 results_notebook.pack(fill='both', expand=True, padx=10, pady=5)
