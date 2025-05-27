@@ -24,15 +24,8 @@ jobs:
       - name: Gereksinimleri yükle
         run: |
           python -m pip install --upgrade pip
-          pip install \
-            pyinstaller \
-            numpy \
-            pandas \
-            matplotlib \
-            pillow \
-            XlsxWriter \
-            pywin32
-
+          pip install pyinstaller numpy pandas matplotlib pillow XlsxWriter pywin32
+          
       - name: EXE’yi derle
         run: |
           pyinstaller --onefile --windowed --icon=app.ico  --collect-all numpy --collect-all pandas --collect-all pywin32 --collect-all matplotlib hesap.py
