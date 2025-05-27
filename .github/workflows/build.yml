@@ -1,28 +1,41 @@
+name: Build & Release EXE
+
 on:
-  push:
-    tags:
-      - 'v*.*.*'
-  workflow_dispatch: {}
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with: python-version: '3.x'
-      - run: pip install pyinstaller numpy pandas matplotlib pillow XlsxWriter pywin32
+      - name: Checkout kodu
+        uses: actions/checkout@v3
+
+      - name: Python’ı kur
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Gereksinimleri yükle
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller numpy pandas matplotlib pillow XlsxWriter pywin32
 
       - name: EXE’yi derle
-        run: python -m PyInstaller --onefile --windowed --icon=app.ico hesap.py
+        run: |
+          python -m PyInstaller --onefile --windowed --icon=app.ico hesap.py
 
       - id: create_release
+        name: Release oluştur veya güncelle
         uses: actions/create-release@v1
         with:
-          tag_name:      ${{ github.ref_name }}
-          release_name:  Release ${{ github.ref_name }}
-          draft:         false
-          prerelease:    false
+          tag_name:     ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft:        false
+          prerelease:   false
           allow_updates: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
