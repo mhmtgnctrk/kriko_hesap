@@ -24,11 +24,11 @@ jobs:
       - name: Gereksinimleri yükle
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller numpy pandas
+          pip install pyinstaller numpy pandas pywin32 matplotlib
 
       - name: EXE’yi derle
         run: |
-          pyinstaller --onefile --windowed --icon=app.ico  --collect-all numpy --collect-all pandas hesap.py
+          pyinstaller --onefile --windowed --icon=app.ico  --collect-all numpy --collect-all pandas --collect-all pywin32 --collect-all matplotlib hesap.py
 
       - id: create_release
         name: Release oluştur
