@@ -93,7 +93,7 @@ def export_to_excel():
 
             # İnterpolated Data
             df_global.to_excel(writer,
-                sheet_name=text=f"Interpole Edilmiş Data ({step:g} mm)", index=False
+                sheet_name=f"Interpole Edilmiş Data ({step:g} mm)", index=False
             )
 
         messagebox.showinfo("Kaydedildi", f"Excel dosyası oluşturuldu:\n{path}")
@@ -320,7 +320,7 @@ tree.pack(side='left', expand=True, fill='both')
 y_scroll = ttk.Scrollbar(data_tab, orient='vertical', command=tree.yview)
 tree.configure(yscrollcommand=y_scroll.set)
 y_scroll.pack(side='right', fill='y')
-results_notebook.add(data_tab, text="İnterpole Edilmiş Yük Eğrisi (5mm)")
+results_notebook.add(data_tab, text=f"İnterpole Edilmiş Yük Eğrisi")
 
 # Global DataFrame
 df_global = pd.DataFrame()
