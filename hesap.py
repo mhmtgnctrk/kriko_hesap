@@ -13,7 +13,7 @@
 # tarih: 2025-05-22
 
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 import numpy as np
 import pandas as pd
 import re
@@ -60,6 +60,46 @@ def copy_interpolated_to_clipboard():
     root.clipboard_append(clip_text)
     messagebox.showinfo("Kopyalandı", "Tablo panoya kopyalandı. Excel'e yapıştırabilirsiniz.")
 
+
+# ----------------------
+# Excel'e veri kaydetme işlevi
+# ----------------------
+def export_to_excel():
+    if df_global.empty:
+        messagebox.showerror("Hata", "Önce Hesapla butonuna basın!")
+        return
+
+    path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel Dosyası", "*.xlsx")],
+        title="Excel dosyası olarak kaydet"
+    )
+    if not path:
+        return
+
+    try:
+        with pd.ExcelWriter(path, engine='xlsxwriter') as writer:
+            # Metin sekmeleri
+            for title, widget in [
+                (E1_TITLE, txt_E1),
+                (E2_TITLE, txt_E2),
+                (E3_TITLE, txt_E3),
+                (C1_TITLE, txt_C1),
+                (C2_TITLE, txt_C2),
+            ]:
+                lines = widget.get("1.0", tk.END).strip().splitlines()
+                pd.DataFrame({title: lines}) \
+                  .to_excel(writer, sheet_name=title[:31], index=False, header=False)
+
+            # İnterpolated Data
+            df_global.to_excel(writer,
+                sheet_name=text=f"Interpole Edilmiş Data ({step:g} mm)", index=False
+            )
+
+        messagebox.showinfo("Kaydedildi", f"Excel dosyası oluşturuldu:\n{path}")
+    except Exception as e:
+        messagebox.showerror("Hata", f"Excel kaydedilemedi:\n{e}")
+
 # ----------------------
 # Hesaplama işlevi
 # ----------------------
@@ -88,8 +128,15 @@ def hesapla():
     except:
         messagebox.showerror("Hata", "Kriko Min/Kriko Max değerlerini kontrol et!")
         return
+    try:
+        step = float(entry_step.get())
+        if step <= 0:
+            raise ValueError
+    except:
+        messagebox.showerror("Hata", "Adım (mm) pozitif sayı olmalı!")
+        return
     h_min, h_max = min(height_vals), max(height_vals)
-    ht_list = list(range(int(h_min), int(h_max) + 5, 5))
+    ht_list = np.arange(h_min, h_max + step/2, step).tolist()
     ld_list = np.interp(ht_list, height_vals, load_vals)
     df = pd.DataFrame({'Height': ht_list, 'Load': [round(v,3) for v in ld_list]})
     for item in tree.get_children():
@@ -102,6 +149,7 @@ def hesapla():
         tree.insert('', 'end', values=row)
     global df_global
     df_global = df
+    lbl_data.config(text=f"{step:g} mm aralıklarla yük-eğri verisi")
     nominal = max(load_vals)
     loss_limit_jack = jmax * 0.05
     mid_h_jack = (jmax - jmin) * 0.5 + jmin
@@ -189,6 +237,7 @@ def hesapla():
         f"• Yükseklik kaybı test yüksekliğinin %5’inden ({height_loss_limit:.2f} mm) fazla olmamalı."
     )
     txt_C2.config(state='disabled')
+    
 
 # ----------------------
 # GUI bileşenlerini oluştur
@@ -208,12 +257,17 @@ tk.Label(frame_params, text="Kriko Min (mm):").grid(row=0, column=0)
 entry_jmin = tk.Entry(frame_params, width=8); entry_jmin.grid(row=0, column=1)
 tk.Label(frame_params, text="Kriko Max (mm):").grid(row=0, column=2)
 entry_jmax = tk.Entry(frame_params, width=8); entry_jmax.grid(row=0, column=3)
+tk.Label(frame_params, text="Adım (mm):").grid(row=0, column=4)
+entry_step = tk.Entry(frame_params, width=5)
+entry_step.grid(row=0, column=5)
+entry_step.insert(0, "5")  # varsayılan 5 mm
 
 tool_frame = tk.Frame(root)
 tool_frame.pack(pady=5)
 tk.Button(tool_frame, text="Hesapla", command=hesapla).pack(side='left', padx=5)
 tk.Button(tool_frame, text="Temizle", command=reset_all).pack(side='left', padx=5)
 tk.Button(tool_frame, text="Excel'e Kopyala", command=copy_interpolated_to_clipboard).pack(side='left', padx=5)
+tk.Button(tool_frame, text="Excel’e Çıktı Al", command=export_to_excel).pack(side='left', padx=5)
 
 results_notebook = ttk.Notebook(root)
 results_notebook.pack(fill='both', expand=True, padx=10, pady=5)
@@ -258,7 +312,9 @@ for title, txt_var, template in [
 
 # Interpolated Data tab
 data_tab = tk.Frame(results_notebook)
-tk.Label(data_tab, text="5 mm aralıklarla yükseklik-eğri verisi").pack(anchor='w')
+lbl_data = tk.Label(data_tab, text="")
+lbl_data.pack(anchor='w')
+
 tree = ttk.Treeview(data_tab, show='headings')
 tree.pack(side='left', expand=True, fill='both')
 y_scroll = ttk.Scrollbar(data_tab, orient='vertical', command=tree.yview)
