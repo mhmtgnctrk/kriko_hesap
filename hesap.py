@@ -2,11 +2,6 @@
 # Bu program, Ford Kriko DV testleri için yükseklik ve yük hesaplamalarını yapar.
 # Kullanıcıdan yükseklik ve yük verilerini alır, interpolasyon yapar ve sonuçları gösterir.
 ### Kullanıcı arayüzü Tkinter ile oluşturulmuştur.
-### Kullanım:
-# 1. Yükseklik ve yük verilerini girin veya yapıştırın.
-# 2. Kriko Min ve Kriko Max değerlerini girin.
-# 3. "Hesapla" butonuna basın.
-# 4. Sonuçları inceleyin ve "Excel'e Kopyala" butonuyla kopyalayın.
 ### version v0.1.0
 # ----------------------
 ### yazar: mehmet gençtürk
@@ -262,7 +257,7 @@ def hesapla():
         f"{C2_TITLE}\n\n"
         f"Prosedür: Krikoya aşağıdaki yük 1 dakika uygulanıp kaldırıldıktan sonra yüksekliği ölçülür.\n"
         f"Test yüksekliği ile yük kalktıktan sonra ölçülen yükseklik arasındaki fark kabul kriterine göre değerlendirilir.\n\n"
-        f"1) Krikoya, {overload:.2f} kg yükü {overload_h66:.1f} mm yükseklikte uygulayın.\n"
+        f"1) Krikoya, {overload:.2f} kg yükü {h66:.1f} mm yükseklikte uygulayın.\n"
         f"2) 1 dakika sonra yükü kaldırıp yüksekliği ölçün ve test yüksekliği ile farkına bakın.\n\n"
         f"Kabul Kriteri:\n"
         f"• Yükseklik kaybı test yüksekliğinin %5’inden ({height_loss_limit:.2f} mm) fazla olmamalı."
